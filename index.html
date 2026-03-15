@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Луминари — Учи всичко</title>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,300;0,500;0,700;1,300&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
+
+  <div id="app">
+
+    <!-- ХЕДЪР -->
+    <header>
+      <div class="logo" onclick="navigate('home')">
+        <div class="logo-diamond"></div>
+        Луминари
+      </div>
+
+      <div class="header-controls">
+
+        <!-- Индикатор за избран клас -->
+        <div class="grade-indicator hidden" id="grade-indicator">
+          <div class="grade-indicator-dot"></div>
+          <span id="grade-label">7. клас</span>
+        </div>
+
+        <!-- Падащо меню за клас -->
+        <div class="select-wrap">
+          <select id="grade-select" onchange="onGradeChange()">
+            <option value="">Избери клас</option>
+            <option value="1">1. клас</option>
+            <option value="2">2. клас</option>
+            <option value="3">3. клас</option>
+            <option value="4">4. клас</option>
+            <option value="5">5. клас</option>
+            <option value="6">6. клас</option>
+            <option value="7">7. клас</option>
+            <option value="8">8. клас</option>
+            <option value="9">9. клас</option>
+            <option value="10">10. клас</option>
+            <option value="11">11. клас</option>
+            <option value="12">12. клас</option>
+            <option value="college">Университет</option>
+          </select>
+        </div>
+
+        <!-- Навигационни табове -->
+        <div class="nav-tabs">
+          <button class="nav-tab active" id="tab-home" onclick="navigate('home')">Начало</button>
+          <button class="nav-tab" id="tab-saved" onclick="navigate('saved')">Запазени</button>
+        </div>
+
+      </div>
+    </header>
+
+    <main>
+
+      <!-- НАЧАЛЕН ЕКРАН -->
+      <div id="home-screen">
+        <div class="hero">
+          <div class="hero-eyebrow">Персонализирано обучение</div>
+          <h1>Учи всичко,<br><em>разбери всичко.</em></h1>
+          <p>Избери своя клас, предмет и тема. Твоят AI учител е готов да обясни всяко понятие по начин, който ти е ясен.</p>
+        </div>
+
+        <h2 class="section-title">Предмети</h2>
+        <div class="subject-grid" id="subject-grid"></div>
+
+        <h2 class="section-title">Бърз старт</h2>
+        <div class="subject-grid" id="quick-grid"></div>
+      </div>
+
+      <!-- ЕКРАН С УРОК -->
+      <div id="lesson-screen">
+        <div class="lesson-layout">
+
+          <!-- Панел с урока -->
+          <div>
+            <div class="lesson-panel">
+              <div class="lesson-header">
+                <div>
+                  <div class="lesson-breadcrumb" id="lesson-breadcrumb">Математика · 8. клас</div>
+                  <div class="lesson-title" id="lesson-title">Алгебра</div>
+                </div>
+                <div class="lesson-actions">
+                  <button class="btn btn-save btn-sm" onclick="saveLesson()">Запази урока</button>
+                  <button class="btn btn-ghost btn-sm" onclick="navigate('home')">Назад</button>
+                </div>
+              </div>
+
+              <div class="lesson-body">
+                <div class="lesson-topic-select">
+                  <label>Избери раздел и тема</label>
+                  <div class="lesson-stepper">
+                    <div class="lesson-step active" id="step-unit">
+                      <span class="lesson-step-number">1</span>
+                      <span>Раздел</span>
+                    </div>
+                    <div class="lesson-step" id="step-topic">
+                      <span class="lesson-step-number">2</span>
+                      <span>Тема</span>
+                    </div>
+                  </div>
+                  <div class="topic-pills" id="topic-pills"></div>
+                </div>
+
+                <div class="progress-bar-wrap">
+                  <div class="progress-bar" id="lesson-progress" style="width:0%"></div>
+                </div>
+
+                <div class="lesson-content" id="lesson-content">
+                  <div class="loading-dots"><span></span><span></span><span></span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- AI Учител -->
+          <div>
+            <div class="ai-panel">
+              <div class="ai-panel-header">
+                <div class="ai-avatar">
+                  <div class="ai-avatar-inner"></div>
+                </div>
+                <div>
+                  <h3>AI Учител</h3>
+                  <p>Попитай ме за този урок</p>
+                </div>
+              </div>
+
+              <div class="ai-chat" id="ai-chat">
+                <div class="chat-msg ai">
+                  Здравей! Аз съм твоят AI учител. Попитай ме да обясня нещо по-просто, да дам пример или да те изпитам по темата!
+                </div>
+              </div>
+
+              <div class="prompt-chips">
+                <div class="prompt-chip" onclick="sendPromptChip(this)">Обясни по-просто</div>
+                <div class="prompt-chip" onclick="sendPromptChip(this)">Дай ми пример</div>
+                <div class="prompt-chip" onclick="sendPromptChip(this)">Изпитай ме</div>
+                <div class="prompt-chip" onclick="sendPromptChip(this)">Защо е важно?</div>
+              </div>
+
+              <div class="ai-input-area">
+                <textarea
+                  class="ai-input"
+                  id="ai-input"
+                  placeholder="Напиши въпрос към учителя..."
+                  rows="1"
+                  onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendAIMessage()}"
+                  oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'"
+                ></textarea>
+                <button class="ai-send" id="ai-send-btn" onclick="sendAIMessage()" title="Изпрати">
+                  &#10148;
+                </button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ЕКРАН СЪС ЗАПАЗЕНИ УРОЦИ -->
+      <div id="saved-screen">
+        <h2 class="section-title">Запазени уроци</h2>
+        <div id="saved-container"></div>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- Известие -->
+  <div class="toast" id="toast">
+    <span id="toast-msg">Урокът е запазен!</span>
+  </div>
+
+  <script src="/static/data.js"></script>
+  <script src="/static/app.js"></script>
+</body>
+</html>
