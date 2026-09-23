@@ -462,11 +462,18 @@ function renderRichContent(el) {
 
 let lessonLoadTimer = null;
 let currentGrade = '';
+let currentGradeLabel = 'общообразователно ниво';
 let currentSubject = '';
 let currentUnit = '';
 let currentTopic = '';
 let currentLessonContent = '';
 let savedLessons = JSON.parse(localStorage.getItem('luminary_saved') || '[]');
+let testHistory = JSON.parse(localStorage.getItem('luminary_test_history') || '[]');
+let currentAssessment = null;
+let testAnswers = {};
+let testCurrentIndex = 0;
+let testResults = null;
+let testReadOnlyMode = false;
 
 const subjectDataMapping = {
   'math': 'Математика',
@@ -601,7 +608,7 @@ function renderHome() {
 }
 
 function navigate(screen) {
-  ['home', 'lesson', 'saved'].forEach(s => {
+  ['home', 'lesson', 'saved', 'test'].forEach(s => {
     document.getElementById(`${s}-screen`).style.display = 'none';
     const tab = document.getElementById(`tab-${s}`);
     if (tab) tab.classList.remove('active');
@@ -609,7 +616,7 @@ function navigate(screen) {
   document.getElementById(`${screen}-screen`).style.display = 'block';
   const tab = document.getElementById(`tab-${screen}`);
   if (tab) tab.classList.add('active');
-  if (screen === 'saved') renderSaved();
+  if (screen === 'saved') { renderSaved(); renderTestHistory(); }
 }
 
 function onGradeChange() {
@@ -666,6 +673,7 @@ function openSubject(subjectId) {
   }
 
   document.getElementById('lesson-content').innerHTML = '';
+  document.getElementById('take-test-wrap')?.setAttribute('hidden', '');
   document.getElementById('ai-chat').innerHTML = `
     <div class="chat-msg ai">
       Здравей! Аз съм твоят AI учител по <strong>${subj.name}</strong>. Избери раздел отгоре и после тема. Попитай ме да обясня нещо по-просто, да дам пример или да те изпитам!
@@ -756,8 +764,10 @@ async function loadLessonContent(topic) {
 
   contentEl.innerHTML = '<div class="loading-dots"><span></span><span></span><span></span></div>';
   progress.style.width = '0%';
+  document.getElementById('take-test-wrap')?.setAttribute('hidden', '');
 
   const grade = currentGrade ? gradeLabels[currentGrade] : 'общообразователно ниво';
+  currentGradeLabel = grade;
   const subj  = subjects.find(s => s.id === currentSubject);
 
   const prompt = `Създай ясен и увлекателен урок на БЪЛГАРСКИ ЕЗИК за темата "${topic}" в предмет ${subj?.name} за ученик от ${grade}.
@@ -794,6 +804,7 @@ async function loadLessonContent(topic) {
     currentLessonContent = clean;
     contentEl.innerHTML  = clean;
     renderRichContent(contentEl);
+    document.getElementById('take-test-wrap')?.removeAttribute('hidden');
 
     const toggleBtn = document.getElementById('toggle-topics-btn');
     if (window.matchMedia('(max-width: 900px)').matches) {
@@ -875,6 +886,7 @@ function loadSavedLesson(id) {
   currentUnit          = lesson.unit;
   currentTopic         = lesson.topic;
   currentLessonContent = lesson.content;
+  currentGradeLabel    = lesson.grade;
 
   navigate('lesson');
   document.getElementById('lesson-breadcrumb').textContent = `${lesson.subject} · ${lesson.grade}`;
@@ -920,6 +932,7 @@ function loadSavedLesson(id) {
     document.getElementById('lesson-content').innerHTML  = lesson.content;
   }
   renderRichContent(document.getElementById('lesson-content'));
+  document.getElementById('take-test-wrap')?.removeAttribute('hidden');
 
   document.getElementById('lesson-progress').style.width = '0%';
   document.getElementById('ai-chat').innerHTML = `
@@ -1010,6 +1023,252 @@ function showToast(msg, isError = false) {
   t.style.color       = isError ? 'var(--danger)' : 'var(--success)';
   t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+/* ================= END-OF-LESSON ASSESSMENT ================= */
+
+async function startAssessment() {
+  if (!currentLessonContent) {
+    showToast('Няма зареден урок за тест!', true);
+    return;
+  }
+  const subj = subjects.find(s => s.id === currentSubject);
+  const btn  = document.getElementById('take-test-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Подготвяне на теста…'; }
+
+  const plainLesson = currentLessonContent.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+
+  try {
+    const response = await fetch('/generate-test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        lesson_text: plainLesson,
+        topic: currentTopic || currentUnit,
+        subject: subj?.name,
+        grade: currentGradeLabel,
+        num_questions: 8
+      })
+    });
+    if (!response.ok) throw new Error('API error');
+    const data = await response.json();
+    if (!data.questions || !data.questions.length) throw new Error('empty');
+
+    currentAssessment = data;
+    testAnswers = {};
+    testCurrentIndex = 0;
+    testResults = null;
+    testReadOnlyMode = false;
+
+    navigate('test');
+    renderTestQuestion();
+  } catch (err) {
+    showToast('Неуспешно генериране на тест. Опитай пак.', true);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Вземи тест'; }
+  }
+}
+
+function testOptionsFor(question) {
+  if (question.type === 'multiple_choice' || question.type === 'true_false') {
+    return question.options && question.options.length ? question.options : (question.type === 'true_false' ? ['Вярно', 'Невярно'] : []);
+  }
+  return null;
+}
+
+function renderTestQuestion() {
+  const panel = document.getElementById('test-panel');
+  const total = currentAssessment.questions.length;
+  const q = currentAssessment.questions[testCurrentIndex];
+  const savedAnswer = testAnswers[q.id];
+  const options = testOptionsFor(q);
+  const progressPct = Math.round(((testCurrentIndex) / total) * 100);
+
+  let controlsHtml = '';
+  if (options) {
+    controlsHtml = `<div class="test-options">` + options.map((opt, idx) => `
+      <button type="button" class="test-option ${savedAnswer === opt ? 'selected' : ''}" onclick="selectTestOption(${idx})">${escapeXml(opt)}</button>
+    `).join('') + `</div>`;
+  } else {
+    const hint = (q.type === 'numeric' || q.type === 'expression')
+      ? 'Ако има повече от една стойност, раздели ги със запетая (напр. 2, 3).'
+      : 'Напиши кратък отговор.';
+    controlsHtml = `
+      <input type="text" class="test-input" id="test-free-input" placeholder="Твоят отговор..." value="${savedAnswer ? escapeXml(savedAnswer) : ''}" oninput="testAnswers[${q.id}] = this.value">
+      <div class="test-input-hint">${hint}</div>
+    `;
+  }
+
+  const isLast = testCurrentIndex === total - 1;
+
+  panel.innerHTML = `
+    <div class="test-progress">Въпрос ${testCurrentIndex + 1} от ${total}</div>
+    <div class="test-progress-bar-wrap"><div class="test-progress-bar" style="width:${progressPct}%"></div></div>
+    <div class="test-topic-tag">${escapeXml(q.topic)}</div>
+    <div class="test-question-text">${escapeXml(q.question)}</div>
+    ${controlsHtml}
+    <div class="test-nav">
+      <button class="btn btn-ghost btn-sm" onclick="testPrev()" ${testCurrentIndex === 0 ? 'disabled style="opacity:.35;cursor:not-allowed"' : ''}>Назад</button>
+      <button class="btn btn-primary btn-sm" onclick="${isLast ? 'finishTest()' : 'testNext()'}">${isLast ? 'Завърши теста' : 'Напред'}</button>
+    </div>
+  `;
+  renderRichContent(panel);
+}
+
+function selectTestOption(optionIndex) {
+  const q = currentAssessment.questions[testCurrentIndex];
+  const options = testOptionsFor(q);
+  testAnswers[q.id] = options[optionIndex];
+  renderTestQuestion();
+}
+
+function testNext() {
+  if (testCurrentIndex < currentAssessment.questions.length - 1) {
+    testCurrentIndex++;
+    renderTestQuestion();
+  }
+}
+
+function testPrev() {
+  if (testCurrentIndex > 0) {
+    testCurrentIndex--;
+    renderTestQuestion();
+  }
+}
+
+async function finishTest() {
+  const panel = document.getElementById('test-panel');
+  panel.innerHTML = '<div class="loading-dots"><span></span><span></span><span></span></div>';
+
+  try {
+    const response = await fetch('/evaluate-test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ questions: currentAssessment.questions, answers: testAnswers })
+    });
+    if (!response.ok) throw new Error('API error');
+    testResults = await response.json();
+
+    const subj = subjects.find(s => s.id === currentSubject);
+    testHistory.unshift({
+      id: Date.now(),
+      topic: currentTopic || currentUnit,
+      subject: subj?.name || '',
+      grade: currentGradeLabel,
+      savedAt: new Date().toLocaleDateString('bg-BG', { day: 'numeric', month: 'long', year: 'numeric' }),
+      assessment: currentAssessment,
+      answers: testAnswers,
+      results: testResults
+    });
+    testHistory = testHistory.slice(0, 30);
+    localStorage.setItem('luminary_test_history', JSON.stringify(testHistory));
+
+    renderTestResults();
+  } catch (err) {
+    panel.innerHTML = `<div class="highlight-box"><p>Грешка при оценяване на теста. Опитай пак.</p></div>`;
+  }
+}
+
+function scoreMessage(pct) {
+  if (pct >= 85) return 'Отлична работа! Разбираш материала много добре.';
+  if (pct >= 60) return 'Добра работа! Има някои области за допълнителна практика.';
+  return 'Продължавай да тренираш — прегледай обясненията по-долу за темите, в които сгреши.';
+}
+
+function renderTestResults() {
+  const panel = document.getElementById('test-panel');
+  const r = testResults;
+
+  const breakdownHtml = Object.entries(r.byTopic).map(([topic, stats]) => {
+    const good = stats.percentage >= 60;
+    return `
+      <div class="skill-row">
+        <div class="skill-row-icon">${good ? '✅' : '❌'}</div>
+        <div class="skill-row-body">
+          <div class="skill-row-top">
+            <span class="skill-row-name">${escapeXml(topic)}</span>
+            <span class="skill-row-fraction">${stats.correct}/${stats.total} · ${stats.percentage}%</span>
+          </div>
+          <div class="skill-bar-track"><div class="skill-bar-fill ${good ? 'good' : 'weak'}" style="width:${stats.percentage}%"></div></div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  const reviewHtml = r.results.map(res => {
+    const userAnswerText = (res.userAnswer === undefined || res.userAnswer === null || res.userAnswer === '')
+      ? '(без отговор)'
+      : (Array.isArray(res.userAnswer) ? res.userAnswer.join(', ') : String(res.userAnswer));
+    const correctAnswerText = Array.isArray(res.correctAnswer) ? res.correctAnswer.join(', ') : String(res.correctAnswer);
+    return `
+      <div class="review-item ${res.isCorrect ? 'correct' : 'incorrect'}">
+        <div class="review-badge ${res.isCorrect ? 'correct' : 'incorrect'}">${res.isCorrect ? '✅ Правилно' : '❌ Грешно'}</div>
+        <div class="review-question">${escapeXml(res.question)}</div>
+        <div class="review-row">
+          <span class="review-row-label">Твоят отговор</span>
+          <span class="${res.isCorrect ? '' : 'review-answer-wrong'}">${escapeXml(userAnswerText)}</span>
+        </div>
+        ${res.isCorrect ? '' : `
+        <div class="review-row">
+          <span class="review-row-label">Верен отговор</span>
+          <span class="review-answer-right">${escapeXml(correctAnswerText)}</span>
+        </div>`}
+        <div class="review-explanation">${escapeXml(res.explanation)}</div>
+      </div>
+    `;
+  }).join('');
+
+  panel.innerHTML = `
+    <div class="test-score-hero">
+      <div class="test-score-number">${r.score} / ${r.total}</div>
+      <div class="test-score-percentage">${r.percentage}%</div>
+      <div class="test-score-message">${scoreMessage(r.percentage)}</div>
+    </div>
+
+    <h2 class="section-title">Резултати по теми</h2>
+    <div class="skill-breakdown">${breakdownHtml}</div>
+
+    <h2 class="section-title">Преглед на въпросите</h2>
+    <div class="review-section">${reviewHtml}</div>
+
+    <div style="display:flex;justify-content:center;margin-top:32px">
+      <button class="btn btn-ghost" onclick="${testReadOnlyMode ? "navigate('saved')" : "navigate('lesson')"}">${testReadOnlyMode ? 'Назад към историята' : 'Назад към урока'}</button>
+    </div>
+  `;
+  renderRichContent(panel);
+}
+
+function viewSavedTestResult(id) {
+  const entry = testHistory.find(h => h.id === id);
+  if (!entry) return;
+  currentAssessment = entry.assessment;
+  testAnswers = entry.answers;
+  testResults = entry.results;
+  testReadOnlyMode = true;
+  navigate('test');
+  renderTestResults();
+}
+
+function renderTestHistory() {
+  const container = document.getElementById('test-history-container');
+  if (!container) return;
+  if (!testHistory.length) {
+    container.innerHTML = `<div class="empty-state"><p>Все още няма завършени тестове.</p></div>`;
+    return;
+  }
+  container.innerHTML = testHistory.map(h => `
+    <div class="test-history-card" onclick="viewSavedTestResult(${h.id})">
+      <div>
+        <div class="saved-card-meta">
+          <span class="badge">${escapeXml(h.subject)}</span>
+          <span class="badge">${escapeXml(h.grade)}</span>
+          <span style="margin-left:auto">${escapeXml(h.savedAt)}</span>
+        </div>
+        <div class="saved-card-title">${escapeXml(h.topic)}</div>
+      </div>
+      <div class="test-history-score">${h.results.score}/${h.results.total} · ${h.results.percentage}%</div>
+    </div>
+  `).join('');
 }
 
 renderHome();
