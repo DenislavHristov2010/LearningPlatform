@@ -301,7 +301,7 @@ async function loadLessonContent(topic) {
 
   try {
     progress.style.width = '40%';
-    const response = await fetch('http://localhost:8000/generate-lesson', {
+    const response = await fetch('/generate-lesson', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -495,7 +495,7 @@ async function sendAIChat(userMsg) {
 Отговори на БЪЛГАРСКИ с прост и топъл тон. Максимум 3-4 изречения. Без markdown форматиране. Завърши с насърчение или следващ въпрос.`;
 
   try {
-    const response = await fetch('http://localhost:8000/chat', {
+    const response = await fetch('/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
