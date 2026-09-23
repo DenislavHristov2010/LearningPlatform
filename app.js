@@ -255,7 +255,9 @@ function buildTriangleSVG(data) {
     const strokeMark  = (unit * 0.011).toFixed(3);
     const dash = `${(unit * 0.045).toFixed(3)},${(unit * 0.032).toFixed(3)}`;
 
-    let svg = `<div style="max-width:380px;width:100%;margin:18px auto;overflow-x:auto;"><svg viewBox="0 0 ${W.toFixed(2)} ${H.toFixed(2)}" width="${W.toFixed(2)}" height="${H.toFixed(2)}" style="width:100%;height:auto;display:block;" xmlns="http://www.w3.org/2000/svg">`;
+    const dispW = 320;
+    const dispH = Math.round(dispW * H / W);
+    let svg = `<div style="max-width:${dispW}px;margin:18px auto;overflow-x:auto;"><svg viewBox="0 0 ${W.toFixed(2)} ${H.toFixed(2)}" width="${dispW}" height="${dispH}" style="max-width:100%;height:auto;display:block;" xmlns="http://www.w3.org/2000/svg">`;
 
     const mA = map(A), mB = map(B), mC = map(C);
     svg += `<polygon points="${fmt(mA)} ${fmt(mB)} ${fmt(mC)}" fill="rgba(110,181,255,0.08)" stroke="var(--accent2)" stroke-width="${strokeThick}" />`;
@@ -378,7 +380,7 @@ function buildPlotSVG(data) {
     const mapX = (x) => marginL + (x - xmin) / (xmax - xmin) * plotW;
     const mapY = (y) => marginT + (yMax - y) / (yMax - yMin) * plotH;
 
-    let svg = `<div style="max-width:460px;width:100%;margin:18px auto;overflow-x:auto;"><svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" style="width:100%;height:auto;display:block;" xmlns="http://www.w3.org/2000/svg">`;
+    let svg = `<div style="max-width:${W}px;margin:18px auto;overflow-x:auto;"><svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" style="max-width:100%;height:auto;display:block;" xmlns="http://www.w3.org/2000/svg">`;
 
     const xStep = niceStep(xmax - xmin), yStep = niceStep(yMax - yMin);
     for (let gx = Math.ceil(xmin / xStep) * xStep; gx <= xmax + 1e-9; gx += xStep) {
