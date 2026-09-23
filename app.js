@@ -1,3 +1,15 @@
+function renderMath(el) {
+  if (typeof renderMathInElement !== 'function') return;
+  renderMathInElement(el, {
+    delimiters: [
+      { left: '\\[', right: '\\]', display: true },
+      { left: '\\(', right: '\\)', display: false },
+      { left: '$$', right: '$$', display: true }
+    ],
+    throwOnError: false
+  });
+}
+
 let lessonLoadTimer = null;
 let currentGrade = '';
 let currentSubject = '';
@@ -321,6 +333,7 @@ async function loadLessonContent(topic) {
     const clean = html.replace(/```html|```/g, '').trim();
     currentLessonContent = clean;
     contentEl.innerHTML  = clean;
+    renderMath(contentEl);
 
     setTimeout(() => { progress.style.width = '0%'; }, 900);
   } catch (err) {
@@ -452,6 +465,7 @@ async function sendAIMessage() {
   if (!msg) return;
   input.value = '';
   input.style.height = 'auto';
+  if (window.matchMedia('(pointer: coarse)').matches) input.blur();
   sendAIChat(msg);
 }
 
@@ -511,6 +525,7 @@ async function sendAIChat(userMsg) {
     const data = await response.json();
     const reply = data.reply;
     loadingEl.textContent = reply || 'Неуспешен отговор. Опитай пак.';
+    renderMath(loadingEl);
   } catch (err) {
     loadingEl.textContent = 'Грешка при свързване. Провери дали FastAPI сървърът работи.';
   }
