@@ -3,11 +3,11 @@
   --surface: #292e38;
   --surface2: #343b48;
   --border: #414a5c;
-  --accent: #c9a255;
-  --accent2: #72a9ff;
-  --accent3: #9c82d8;
+  --accent: #f0c060;
+  --accent2: #6eb5ff;
+  --accent3: #b08fff;
   --text: #eceff4;
-  --muted: #99a3b7;
+  --muted: #aab4c9;
   --danger: #ff7b7b;
   --success: #6ad09a;
   --radius: 14px;
@@ -740,4 +740,15 @@ main { flex: 1; padding: 40px; max-width: 1200px; margin: 0 auto; width: 100%; }
   .lesson-layout { grid-template-columns: 1fr; }
   header { padding: 14px 20px; }
   main { padding: 24px 20px; }
+}
+
+@media (max-width: 600px) {
+  header { padding: 12px 16px; gap: 10px; }
+  .logo { font-size: 1.3rem; gap: 7px; }
+  .logo-diamond { width: 14px; height: 14px; }
+  .header-controls { gap: 8px; }
+  .grade-indicator { padding: 5px 12px; font-size: 0.72rem; }
+  select { padding: 7px 26px 7px 12px; font-size: 0.76rem; }
+  .nav-tabs { gap: 2px; padding: 3px; }
+  .nav-tab { padding: 5px 12px; font-size: 0.72rem; }
 }
