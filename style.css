@@ -327,6 +327,7 @@ main { flex: 1; padding: 40px; max-width: 1200px; margin: 0 auto; width: 100%; }
   display: grid;
   gap: 14px;
 }
+.lesson-topic-select.topic-select-collapsed { display: none; }
 .lesson-topic-select label {
   display: block;
   font-size: 0.78rem;

@@ -10,6 +10,454 @@ function renderMath(el) {
   });
 }
 
+/* ---------- sanitizer for AI-generated HTML/SVG before innerHTML injection ---------- */
+function sanitizeHtml(html) {
+  const template = document.createElement('template');
+  template.innerHTML = html;
+  const strip = (node) => {
+    Array.from(node.children).forEach(child => {
+      const tag = child.tagName;
+      if (['SCRIPT', 'IFRAME', 'OBJECT', 'EMBED', 'LINK', 'STYLE'].includes(tag)) {
+        child.remove();
+        return;
+      }
+      Array.from(child.attributes).forEach(attr => {
+        const name = attr.name.toLowerCase();
+        const val  = attr.value.trim().toLowerCase();
+        if (name.startsWith('on') || ((name === 'href' || name === 'src') && val.startsWith('javascript:'))) {
+          child.removeAttribute(attr.name);
+        }
+      });
+      strip(child);
+    });
+  };
+  strip(template.content);
+  return template.innerHTML;
+}
+
+function escapeXml(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+/* ---------- tiny safe math expression parser (no eval/Function) ---------- */
+function parseMathExpr(expr) {
+  const tokens = [];
+  const re = /\s*([A-Za-z_][A-Za-z_0-9]*|\d+\.?\d*|\.\d+|\^|\*|\/|\+|-|\(|\)|,)/g;
+  let m;
+  while ((m = re.exec(expr))) tokens.push(m[1]);
+  let pos = 0;
+  const peek = () => tokens[pos];
+  const next = () => tokens[pos++];
+
+  function parseExpression() {
+    let node = parseTerm();
+    while (peek() === '+' || peek() === '-') {
+      const op = next();
+      node = { op, left: node, right: parseTerm() };
+    }
+    return node;
+  }
+  function parseTerm() {
+    let node = parseUnary();
+    while (peek() === '*' || peek() === '/') {
+      const op = next();
+      node = { op, left: node, right: parseUnary() };
+    }
+    return node;
+  }
+  function parseUnary() {
+    if (peek() === '-') { next(); return { op: 'neg', arg: parseUnary() }; }
+    if (peek() === '+') { next(); return parseUnary(); }
+    return parsePower();
+  }
+  function parsePower() {
+    let node = parseAtom();
+    if (peek() === '^') {
+      next();
+      node = { op: '^', left: node, right: parseUnary() };
+    }
+    return node;
+  }
+  function parseAtom() {
+    const t = peek();
+    if (t === undefined) throw new Error('Unexpected end of expression');
+    if (t === '(') {
+      next();
+      const node = parseExpression();
+      if (peek() === ')') next();
+      return node;
+    }
+    if (/^(\d|\.)/.test(t)) { next(); return { num: parseFloat(t) }; }
+    if (/^[A-Za-z_]/.test(t)) {
+      next();
+      if (peek() === '(') {
+        next();
+        const args = [parseExpression()];
+        while (peek() === ',') { next(); args.push(parseExpression()); }
+        if (peek() === ')') next();
+        return { call: t, args };
+      }
+      return { name: t };
+    }
+    throw new Error('Unexpected token: ' + t);
+  }
+
+  const ast = parseExpression();
+  if (pos < tokens.length) throw new Error('Trailing tokens');
+  return ast;
+}
+
+function evalMathAst(node, x) {
+  if (node.num !== undefined) return node.num;
+  if (node.name) {
+    const n = node.name.toLowerCase();
+    if (n === 'x') return x;
+    if (n === 'pi') return Math.PI;
+    if (n === 'e') return Math.E;
+    return NaN;
+  }
+  if (node.call) {
+    const a = node.args.map(arg => evalMathAst(arg, x));
+    switch (node.call.toLowerCase()) {
+      case 'sin': return Math.sin(a[0]);
+      case 'cos': return Math.cos(a[0]);
+      case 'tan': return Math.tan(a[0]);
+      case 'sqrt': return Math.sqrt(a[0]);
+      case 'abs': return Math.abs(a[0]);
+      case 'log': return Math.log(a[0]);
+      case 'log10': return Math.log10(a[0]);
+      case 'exp': return Math.exp(a[0]);
+      case 'pow': return Math.pow(a[0], a[1]);
+      case 'min': return Math.min(...a);
+      case 'max': return Math.max(...a);
+      default: return NaN;
+    }
+  }
+  if (node.op === 'neg') return -evalMathAst(node.arg, x);
+  const l = evalMathAst(node.left, x), r = evalMathAst(node.right, x);
+  switch (node.op) {
+    case '+': return l + r;
+    case '-': return l - r;
+    case '*': return l * r;
+    case '/': return l / r;
+    case '^': return Math.pow(l, r);
+  }
+  return NaN;
+}
+
+/* ---------- geometry math helpers ---------- */
+const geoSub   = (P, Q) => ({ x: P.x - Q.x, y: P.y - Q.y });
+const geoAdd   = (P, Q) => ({ x: P.x + Q.x, y: P.y + Q.y });
+const geoScale = (P, s) => ({ x: P.x * s, y: P.y * s });
+const geoDist  = (P, Q) => Math.hypot(P.x - Q.x, P.y - Q.y);
+const geoNorm  = (P) => { const l = Math.hypot(P.x, P.y) || 1; return { x: P.x / l, y: P.y / l }; };
+
+function triangleVertices(a, b, c) {
+  if (![a, b, c].every(n => Number.isFinite(n) && n > 0)) return null;
+  if (!(a + b > c && a + c > b && b + c > a)) return null;
+  const B = { x: 0, y: 0 };
+  const C = { x: a, y: 0 };
+  const x = (c * c - b * b + a * a) / (2 * a);
+  const y2 = c * c - x * x;
+  if (y2 < 0) return null;
+  const A = { x, y: Math.sqrt(y2) };
+  return { A, B, C };
+}
+
+function footOfPerpendicular(P, Q, R) {
+  const d = geoSub(R, Q);
+  const len2 = d.x * d.x + d.y * d.y;
+  if (len2 === 0) return { ...Q };
+  const t = ((P.x - Q.x) * d.x + (P.y - Q.y) * d.y) / len2;
+  return { x: Q.x + t * d.x, y: Q.y + t * d.y };
+}
+
+function triangleArea(a, b, c) {
+  const s = (a + b + c) / 2;
+  return Math.sqrt(Math.max(s * (s - a) * (s - b) * (s - c), 0));
+}
+
+function triangleIncenter(A, B, C, a, b, c) {
+  const sum = a + b + c;
+  return { x: (a * A.x + b * B.x + c * C.x) / sum, y: (a * A.y + b * B.y + c * C.y) / sum };
+}
+
+function triangleCircumcenter(A, B, C) {
+  const d = 2 * (A.x * (B.y - C.y) + B.x * (C.y - A.y) + C.x * (A.y - B.y));
+  if (Math.abs(d) < 1e-9) return null;
+  const ux = ((A.x ** 2 + A.y ** 2) * (B.y - C.y) + (B.x ** 2 + B.y ** 2) * (C.y - A.y) + (C.x ** 2 + C.y ** 2) * (A.y - B.y)) / d;
+  const uy = ((A.x ** 2 + A.y ** 2) * (C.x - B.x) + (B.x ** 2 + B.y ** 2) * (A.x - C.x) + (C.x ** 2 + C.y ** 2) * (B.x - A.x)) / d;
+  return { x: ux, y: uy };
+}
+
+/* ---------- SVG builders ---------- */
+function buildTriangleSVG(data) {
+  try {
+    const a = Number(data.sides?.a), b = Number(data.sides?.b), c = Number(data.sides?.c);
+    const verts = triangleVertices(a, b, c);
+    if (!verts) return null;
+    const { A, B, C } = verts;
+    const vertexOf = { A, B, C };
+    const oppositeSide = { A: [B, C], B: [C, A], C: [A, B] };
+
+    const points = [A, B, C];
+    let altitudeInfo = null, medianInfo = null, bisectorInfo = null, incircleInfo = null, circumcircleInfo = null;
+
+    if (data.altitude && vertexOf[data.altitude]) {
+      const v = data.altitude, P = vertexOf[v], [Q, R] = oppositeSide[v];
+      const H = footOfPerpendicular(P, Q, R);
+      points.push(H);
+      altitudeInfo = { P, H, Q, R };
+    }
+    if (data.median && vertexOf[data.median]) {
+      const v = data.median, P = vertexOf[v], [Q, R] = oppositeSide[v];
+      const M = { x: (Q.x + R.x) / 2, y: (Q.y + R.y) / 2 };
+      points.push(M);
+      medianInfo = { P, M };
+    }
+    if (data.bisector && vertexOf[data.bisector]) {
+      const v = data.bisector, P = vertexOf[v], [Q, R] = oppositeSide[v];
+      const PQ = geoDist(P, Q), PR = geoDist(P, R);
+      const t = PQ / (PQ + PR);
+      const D = { x: Q.x + t * (R.x - Q.x), y: Q.y + t * (R.y - Q.y) };
+      points.push(D);
+      bisectorInfo = { P, D };
+    }
+    if (data.incircle) {
+      const I = triangleIncenter(A, B, C, a, b, c);
+      const r = triangleArea(a, b, c) / ((a + b + c) / 2);
+      points.push({ x: I.x - r, y: I.y - r }, { x: I.x + r, y: I.y + r });
+      incircleInfo = { I, r };
+    }
+    if (data.circumcircle) {
+      const O = triangleCircumcenter(A, B, C);
+      if (O) {
+        const R = geoDist(O, A);
+        points.push({ x: O.x - R, y: O.y - R }, { x: O.x + R, y: O.y + R });
+        circumcircleInfo = { O, R };
+      }
+    }
+
+    const unit = Math.min(a, b, c);
+    const xs = points.map(p => p.x), ys = points.map(p => p.y);
+    const minX = Math.min(...xs), maxX = Math.max(...xs);
+    const minY = Math.min(...ys), maxY = Math.max(...ys);
+    const span = Math.max(maxX - minX, maxY - minY) || 1;
+    const pad = span * 0.2 + unit * 0.16;
+    const W = (maxX - minX) + pad * 2;
+    const H = (maxY - minY) + pad * 2;
+    const map = (p) => ({ x: p.x - minX + pad, y: (maxY - p.y) + pad });
+    const fmt = (p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`;
+    const fs = (unit * 0.16).toFixed(2);
+    const dotR = (unit * 0.035).toFixed(2);
+    const strokeThick = (unit * 0.022).toFixed(3);
+    const strokeThin  = (unit * 0.015).toFixed(3);
+    const strokeMark  = (unit * 0.011).toFixed(3);
+    const dash = `${(unit * 0.045).toFixed(3)},${(unit * 0.032).toFixed(3)}`;
+
+    let svg = `<svg viewBox="0 0 ${W.toFixed(2)} ${H.toFixed(2)}" style="width:100%;max-width:380px;height:auto;display:block;margin:18px auto;" xmlns="http://www.w3.org/2000/svg">`;
+
+    const mA = map(A), mB = map(B), mC = map(C);
+    svg += `<polygon points="${fmt(mA)} ${fmt(mB)} ${fmt(mC)}" fill="rgba(110,181,255,0.08)" stroke="var(--accent2)" stroke-width="${strokeThick}" />`;
+
+    const centroid = { x: (A.x + B.x + C.x) / 3, y: (A.y + B.y + C.y) / 3 };
+    const labelPoint = (name, P, color, off) => {
+      const dir = geoNorm(geoSub(P, centroid));
+      const lp = map(geoAdd(P, geoScale(dir, off)));
+      svg += `<text x="${lp.x.toFixed(2)}" y="${lp.y.toFixed(2)}" font-size="${fs}" fill="${color}" text-anchor="middle" dominant-baseline="middle" font-weight="600">${escapeXml(name)}</text>`;
+    };
+    labelPoint('A', A, 'var(--text)', unit * 0.16);
+    labelPoint('B', B, 'var(--text)', unit * 0.16);
+    labelPoint('C', C, 'var(--text)', unit * 0.16);
+
+    const labelSide = (P, Q, len) => {
+      const mid = { x: (P.x + Q.x) / 2, y: (P.y + Q.y) / 2 };
+      const dir = geoNorm(geoSub(mid, centroid));
+      const lp = map(geoAdd(mid, geoScale(dir, unit * 0.11)));
+      svg += `<text x="${lp.x.toFixed(2)}" y="${lp.y.toFixed(2)}" font-size="${(fs * 0.82).toFixed(2)}" fill="var(--muted)" text-anchor="middle">${escapeXml(len)}</text>`;
+    };
+    labelSide(B, C, a); labelSide(C, A, b); labelSide(A, B, c);
+
+    if (altitudeInfo) {
+      const { P, H, Q, R } = altitudeInfo;
+      const mp = map(P), mh = map(H);
+      svg += `<line x1="${mp.x.toFixed(2)}" y1="${mp.y.toFixed(2)}" x2="${mh.x.toFixed(2)}" y2="${mh.y.toFixed(2)}" stroke="var(--accent)" stroke-width="${strokeThin}" stroke-dasharray="${dash}" />`;
+      const baseDir = geoNorm(geoSub(R, Q));
+      const altDir  = geoNorm(geoSub(P, H));
+      const ms = unit * 0.09;
+      const p1 = geoAdd(H, geoScale(baseDir, ms));
+      const p2 = geoAdd(p1, geoScale(altDir, ms));
+      const p3 = geoAdd(H, geoScale(altDir, ms));
+      const m1 = map(p1), m2 = map(p2), m3 = map(p3);
+      svg += `<polyline points="${fmt(m1)} ${fmt(m2)} ${fmt(m3)}" fill="none" stroke="var(--text)" stroke-width="${strokeMark}" />`;
+      const mhDot = map(H);
+      svg += `<circle cx="${mhDot.x.toFixed(2)}" cy="${mhDot.y.toFixed(2)}" r="${dotR}" fill="var(--accent)" />`;
+      const outLabel = map(geoAdd(H, geoScale(altDir, -unit * 0.13)));
+      svg += `<text x="${outLabel.x.toFixed(2)}" y="${outLabel.y.toFixed(2)}" font-size="${(fs * 0.9).toFixed(2)}" fill="var(--accent)" text-anchor="middle" dominant-baseline="middle" font-weight="600">H</text>`;
+    }
+    if (medianInfo) {
+      const { P, M } = medianInfo;
+      const mp = map(P), mm = map(M);
+      svg += `<line x1="${mp.x.toFixed(2)}" y1="${mp.y.toFixed(2)}" x2="${mm.x.toFixed(2)}" y2="${mm.y.toFixed(2)}" stroke="var(--accent3)" stroke-width="${strokeThin}" stroke-dasharray="${dash}" />`;
+      svg += `<circle cx="${mm.x.toFixed(2)}" cy="${mm.y.toFixed(2)}" r="${dotR}" fill="var(--accent3)" />`;
+    }
+    if (bisectorInfo) {
+      const { P, D } = bisectorInfo;
+      const mp = map(P), md = map(D);
+      svg += `<line x1="${mp.x.toFixed(2)}" y1="${mp.y.toFixed(2)}" x2="${md.x.toFixed(2)}" y2="${md.y.toFixed(2)}" stroke="var(--success)" stroke-width="${strokeThin}" stroke-dasharray="${dash}" />`;
+      svg += `<circle cx="${md.x.toFixed(2)}" cy="${md.y.toFixed(2)}" r="${dotR}" fill="var(--success)" />`;
+    }
+    if (incircleInfo) {
+      const mi = map(incircleInfo.I);
+      const rScaled = Math.abs((map({ x: incircleInfo.I.x + incircleInfo.r, y: incircleInfo.I.y }).x) - mi.x);
+      svg += `<circle cx="${mi.x.toFixed(2)}" cy="${mi.y.toFixed(2)}" r="${rScaled.toFixed(2)}" fill="none" stroke="var(--accent)" stroke-width="${strokeThin}" stroke-dasharray="${dash}" />`;
+      svg += `<circle cx="${mi.x.toFixed(2)}" cy="${mi.y.toFixed(2)}" r="${dotR}" fill="var(--accent)" />`;
+    }
+    if (circumcircleInfo) {
+      const mo = map(circumcircleInfo.O);
+      const rScaled = Math.abs((map({ x: circumcircleInfo.O.x + circumcircleInfo.R, y: circumcircleInfo.O.y }).x) - mo.x);
+      svg += `<circle cx="${mo.x.toFixed(2)}" cy="${mo.y.toFixed(2)}" r="${rScaled.toFixed(2)}" fill="none" stroke="var(--accent3)" stroke-width="${strokeThin}" stroke-dasharray="${dash}" />`;
+      svg += `<circle cx="${mo.x.toFixed(2)}" cy="${mo.y.toFixed(2)}" r="${dotR}" fill="var(--accent3)" />`;
+    }
+
+    svg += `</svg>`;
+    if (data.caption) {
+      svg += `<div style="text-align:center;font-size:0.8rem;color:var(--muted);margin:-10px 0 14px;">${escapeXml(data.caption)}</div>`;
+    }
+    return svg;
+  } catch (e) {
+    return null;
+  }
+}
+
+function niceStep(range, target = 6) {
+  const raw = range / target;
+  const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const norm = raw / mag;
+  const step = norm < 1.5 ? 1 : norm < 3 ? 2 : norm < 7 ? 5 : 10;
+  return step * mag;
+}
+
+function buildPlotSVG(data) {
+  try {
+    const fns = Array.isArray(data.fns) ? data.fns : (data.fn ? [data.fn] : []);
+    if (!fns.length) return null;
+    const domain = Array.isArray(data.domain) && data.domain.length === 2 ? data.domain.map(Number) : [-10, 10];
+    const [xmin, xmax] = domain;
+    if (!(Number.isFinite(xmin) && Number.isFinite(xmax)) || xmin >= xmax) return null;
+
+    const colors = ['var(--accent2)', 'var(--accent)', 'var(--accent3)', 'var(--danger)', 'var(--success)'];
+    const N = 240;
+    const series = [];
+    let yMin = Infinity, yMax = -Infinity;
+
+    for (const fnStr of fns) {
+      let ast;
+      try { ast = parseMathExpr(fnStr); } catch (e) { continue; }
+      const pts = [];
+      for (let i = 0; i <= N; i++) {
+        const x = xmin + (xmax - xmin) * i / N;
+        const y = evalMathAst(ast, x);
+        if (Number.isFinite(y)) {
+          pts.push({ x, y });
+          if (y < yMin) yMin = y;
+          if (y > yMax) yMax = y;
+        } else {
+          pts.push(null);
+        }
+      }
+      series.push({ fnStr, pts });
+    }
+    if (!Number.isFinite(yMin) || !Number.isFinite(yMax)) return null;
+    if (yMin === yMax) { yMin -= 1; yMax += 1; }
+    const padY = (yMax - yMin) * 0.12;
+    yMin -= padY; yMax += padY;
+
+    const W = 480, H = 320, marginL = 40, marginR = 18, marginT = 18, marginB = 34;
+    const plotW = W - marginL - marginR, plotH = H - marginT - marginB;
+    const mapX = (x) => marginL + (x - xmin) / (xmax - xmin) * plotW;
+    const mapY = (y) => marginT + (yMax - y) / (yMax - yMin) * plotH;
+
+    let svg = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:460px;height:auto;display:block;margin:18px auto;" xmlns="http://www.w3.org/2000/svg">`;
+
+    const xStep = niceStep(xmax - xmin), yStep = niceStep(yMax - yMin);
+    for (let gx = Math.ceil(xmin / xStep) * xStep; gx <= xmax + 1e-9; gx += xStep) {
+      const px = mapX(gx);
+      svg += `<line x1="${px.toFixed(1)}" y1="${marginT}" x2="${px.toFixed(1)}" y2="${marginT + plotH}" stroke="var(--border)" stroke-width="1" opacity="0.5"/>`;
+      svg += `<text x="${px.toFixed(1)}" y="${(marginT + plotH + 16).toFixed(1)}" font-size="10" fill="var(--muted)" text-anchor="middle">${Math.round(gx * 100) / 100}</text>`;
+    }
+    for (let gy = Math.ceil(yMin / yStep) * yStep; gy <= yMax + 1e-9; gy += yStep) {
+      const py = mapY(gy);
+      svg += `<line x1="${marginL}" y1="${py.toFixed(1)}" x2="${marginL + plotW}" y2="${py.toFixed(1)}" stroke="var(--border)" stroke-width="1" opacity="0.5"/>`;
+      svg += `<text x="${(marginL - 6).toFixed(1)}" y="${(py + 3).toFixed(1)}" font-size="10" fill="var(--muted)" text-anchor="end">${Math.round(gy * 100) / 100}</text>`;
+    }
+    if (xmin <= 0 && xmax >= 0) {
+      const px = mapX(0);
+      svg += `<line x1="${px.toFixed(1)}" y1="${marginT}" x2="${px.toFixed(1)}" y2="${marginT + plotH}" stroke="var(--muted)" stroke-width="1.4"/>`;
+    }
+    if (yMin <= 0 && yMax >= 0) {
+      const py = mapY(0);
+      svg += `<line x1="${marginL}" y1="${py.toFixed(1)}" x2="${marginL + plotW}" y2="${py.toFixed(1)}" stroke="var(--muted)" stroke-width="1.4"/>`;
+    }
+
+    series.forEach((s, idx) => {
+      const color = colors[idx % colors.length];
+      let d = '', started = false;
+      for (const p of s.pts) {
+        if (!p) { started = false; continue; }
+        const px = mapX(p.x), py = mapY(p.y);
+        d += (started ? 'L ' : 'M ') + px.toFixed(2) + ' ' + py.toFixed(2) + ' ';
+        started = true;
+      }
+      if (d) svg += `<path d="${d}" fill="none" stroke="${color}" stroke-width="2.2" />`;
+    });
+
+    const labels = Array.isArray(data.labels) ? data.labels : fns;
+    let ly = marginT + 4;
+    labels.forEach((lab, idx) => {
+      const color = colors[idx % colors.length];
+      svg += `<rect x="${marginL + plotW - 118}" y="${(ly - 8).toFixed(1)}" width="10" height="10" fill="${color}" rx="2"/>`;
+      svg += `<text x="${marginL + plotW - 104}" y="${ly.toFixed(1)}" font-size="10" fill="var(--text)">${escapeXml(lab)}</text>`;
+      ly += 16;
+    });
+
+    svg += `</svg>`;
+    return svg;
+  } catch (e) {
+    return null;
+  }
+}
+
+function renderGeometryFigures(root) {
+  root.querySelectorAll('.geo-figure').forEach(el => {
+    try {
+      const data = JSON.parse(el.getAttribute('data-geo'));
+      const svgHtml = data.type === 'triangle' ? buildTriangleSVG(data) : null;
+      if (svgHtml) el.outerHTML = svgHtml; else el.remove();
+    } catch (e) {
+      el.remove();
+    }
+  });
+}
+
+function renderFunctionPlots(root) {
+  root.querySelectorAll('.fn-plot').forEach(el => {
+    try {
+      const data = JSON.parse(el.getAttribute('data-plot'));
+      const svgHtml = buildPlotSVG(data);
+      if (svgHtml) el.outerHTML = svgHtml; else el.remove();
+    } catch (e) {
+      el.remove();
+    }
+  });
+}
+
+function renderRichContent(el) {
+  renderGeometryFigures(el);
+  renderFunctionPlots(el);
+  renderMath(el);
+}
+
 let lessonLoadTimer = null;
 let currentGrade = '';
 let currentSubject = '';
@@ -181,10 +629,13 @@ function openSubject(subjectId) {
   currentSubject = subjectId;
   const subj = subjects.find(s => s.id === subjectId);
   navigate('lesson');
-  
+
   const gradeLabel = currentGrade ? ` · ${gradeLabels[currentGrade]}` : '';
   document.getElementById('lesson-breadcrumb').textContent = `${subj.name}${gradeLabel}`;
   document.getElementById('lesson-title').textContent = 'Избери раздел';
+
+  document.getElementById('lesson-topic-select')?.classList.remove('topic-select-collapsed');
+  document.getElementById('toggle-topics-btn')?.setAttribute('hidden', '');
 
   document.getElementById('step-unit')?.classList.add('active');
   document.getElementById('step-topic')?.classList.remove('active');
@@ -279,6 +730,13 @@ function openSubjectTopic(subjectId, topic) {
   }
 }
 
+function toggleTopicSelect() {
+  const select = document.getElementById('lesson-topic-select');
+  const btn    = document.getElementById('toggle-topics-btn');
+  const collapsed = select.classList.toggle('topic-select-collapsed');
+  btn.textContent = collapsed ? 'Смени урока' : 'Скрий раздели';
+}
+
 function selectTopic(topic, el) {
   currentTopic = topic;
   if (el) {
@@ -330,10 +788,18 @@ async function loadLessonContent(topic) {
 
     if (!html) throw new Error('empty');
 
-    const clean = html.replace(/```html|```/g, '').trim();
+    const clean = sanitizeHtml(html.replace(/```html|```/g, '').trim());
     currentLessonContent = clean;
     contentEl.innerHTML  = clean;
-    renderMath(contentEl);
+    renderRichContent(contentEl);
+
+    const toggleBtn = document.getElementById('toggle-topics-btn');
+    if (window.matchMedia('(max-width: 900px)').matches) {
+      document.getElementById('lesson-topic-select')?.classList.add('topic-select-collapsed');
+      toggleBtn?.removeAttribute('hidden');
+      if (toggleBtn) toggleBtn.textContent = 'Смени урока';
+      window.scrollTo(0, 0);
+    }
 
     setTimeout(() => { progress.style.width = '0%'; }, 900);
   } catch (err) {
@@ -451,7 +917,8 @@ function loadSavedLesson(id) {
   } else {
     document.getElementById('lesson-content').innerHTML  = lesson.content;
   }
-  
+  renderRichContent(document.getElementById('lesson-content'));
+
   document.getElementById('lesson-progress').style.width = '0%';
   document.getElementById('ai-chat').innerHTML = `
     <div class="chat-msg ai">
@@ -524,8 +991,8 @@ async function sendAIChat(userMsg) {
     if (!response.ok) throw new Error('API error');
     const data = await response.json();
     const reply = data.reply;
-    loadingEl.textContent = reply || 'Неуспешен отговор. Опитай пак.';
-    renderMath(loadingEl);
+    loadingEl.innerHTML = sanitizeHtml(reply || 'Неуспешен отговор. Опитай пак.');
+    renderRichContent(loadingEl);
   } catch (err) {
     loadingEl.textContent = 'Грешка при свързване. Провери дали FastAPI сървърът работи.';
   }

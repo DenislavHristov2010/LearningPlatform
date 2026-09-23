@@ -82,13 +82,14 @@
                   <div class="lesson-title" id="lesson-title">Алгебра</div>
                 </div>
                 <div class="lesson-actions">
+                  <button class="btn btn-ghost btn-sm" id="toggle-topics-btn" onclick="toggleTopicSelect()" hidden>Смени урока</button>
                   <button class="btn btn-save btn-sm" onclick="saveLesson()">Запази урока</button>
                   <button class="btn btn-ghost btn-sm" onclick="navigate('home')">Назад</button>
                 </div>
               </div>
 
               <div class="lesson-body">
-                <div class="lesson-topic-select">
+                <div class="lesson-topic-select" id="lesson-topic-select">
                   <label>Избери раздел и тема</label>
                   <div class="lesson-stepper">
                     <div class="lesson-step active" id="step-unit">
