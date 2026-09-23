@@ -9,9 +9,9 @@ This is a learning platform that uses FastAPI for AI-powered lesson generation a
    pip install -r requirements.txt
    ```
 
-2. Set your Gemini API key as an environment variable:
+2. Set your GROQ API key as an environment variable:
    ```
-   export GEMINI_API_KEY=your_api_key_here
+   export GROQ_API_KEY=your_api_key_here
    ```
    Or edit `main.py` and set it directly.
 

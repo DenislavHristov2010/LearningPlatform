@@ -2383,4 +2383,4 @@ const topicsBySubject = {
 
 
 // math bel history himiq biologiq geografiq, choveka i prirodata, choveka i obshtestvoto
-// nqma geo vuv 6 klas, 
+// nqma geo vuv 6 klas,

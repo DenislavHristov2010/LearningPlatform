@@ -60,7 +60,7 @@ async def generate_lesson(data: dict):
             "Authorization": f"Bearer {GROQ_API_KEY}",
             "Content-Type": "application/json"
         }, json={
-            "model": "llama-3.1-8B-instant",
+            "model": "openai/gpt-oss-120b",
             "messages": [{"role": "user", "content": prompt}],
             "temperature": 0.2,
             "top_p": 0.9
@@ -107,7 +107,7 @@ async def chat(data: dict):
             "Authorization": f"Bearer {GROQ_API_KEY}",
             "Content-Type": "application/json"
         }, json={
-            "model": "llama-3.3-70b-versatile",
+            "model": "openai/gpt-oss-120b",
             "messages": [{"role": "user", "content": prompt}],
             "temperature": 0.2,
             "top_p": 0.9,

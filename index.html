@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Луминари — Учи всичко</title>
+  <title>AI Учител</title>
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,300;0,500;0,700;1,300&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/style.css">
 </head>
@@ -15,22 +15,19 @@
 
   <div id="app">
 
-    <!-- ХЕДЪР -->
     <header>
       <div class="logo" onclick="navigate('home')">
         <div class="logo-diamond"></div>
-        Луминари
+        Начало
       </div>
 
       <div class="header-controls">
 
-        <!-- Индикатор за избран клас -->
         <div class="grade-indicator hidden" id="grade-indicator">
           <div class="grade-indicator-dot"></div>
           <span id="grade-label">7. клас</span>
         </div>
 
-        <!-- Падащо меню за клас -->
         <div class="select-wrap">
           <select id="grade-select" onchange="onGradeChange()">
             <option value="">Избери клас</option>
@@ -50,7 +47,6 @@
           </select>
         </div>
 
-        <!-- Навигационни табове -->
         <div class="nav-tabs">
           <button class="nav-tab active" id="tab-home" onclick="navigate('home')">Начало</button>
           <button class="nav-tab" id="tab-saved" onclick="navigate('saved')">Запазени</button>
@@ -61,10 +57,8 @@
 
     <main>
 
-      <!-- НАЧАЛЕН ЕКРАН -->
       <div id="home-screen">
         <div class="hero">
-          <div class="hero-eyebrow">Персонализирано обучение</div>
           <h1>Учи всичко,<br><em>разбери всичко.</em></h1>
           <p>Избери своя клас, предмет и тема. Твоят AI учител е готов да обясни всяко понятие по начин, който ти е ясен.</p>
         </div>
@@ -76,11 +70,9 @@
         <div class="subject-grid" id="quick-grid"></div>
       </div>
 
-      <!-- ЕКРАН С УРОК -->
       <div id="lesson-screen">
         <div class="lesson-layout">
 
-          <!-- Панел с урока -->
           <div>
             <div class="lesson-panel">
               <div class="lesson-header">
@@ -121,7 +113,6 @@
             </div>
           </div>
 
-          <!-- AI Учител -->
           <div>
             <div class="ai-panel">
               <div class="ai-panel-header">
@@ -166,7 +157,6 @@
         </div>
       </div>
 
-      <!-- ЕКРАН СЪС ЗАПАЗЕНИ УРОЦИ -->
       <div id="saved-screen">
         <h2 class="section-title">Запазени уроци</h2>
         <div id="saved-container"></div>
@@ -175,7 +165,6 @@
     </main>
   </div>
 
-  <!-- Известие -->
   <div class="toast" id="toast">
     <span id="toast-msg">Урокът е запазен!</span>
   </div>

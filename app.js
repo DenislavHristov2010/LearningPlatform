@@ -6,19 +6,17 @@ let currentTopic = '';
 let currentLessonContent = '';
 let savedLessons = JSON.parse(localStorage.getItem('luminary_saved') || '[]');
 
-// Mapping from subject ID to one or more data.js keys (might differ from UI label)
-// use array when a UI subject corresponds to several curriculum blocks
 const subjectDataMapping = {
   'math': 'Математика',
   'bulgarian': 'български език и литература',
-  'english': 'Английски език',            // placeholder; add to data.js later
-  'history': 'История',                   // data.js key is simply "История"
+  'english': 'Английски език',
+  'history': 'История',
   'biology': 'Биология и здравно образование',
-  'physics': 'физика_и_астрономия',       // must match key in data.js exactly
+  'physics': 'физика_и_астрономия',
   'chemistry': 'химия и опазване на околната среда',
-  'cs': 'информатика',                    // currently absent in data.js
-  'geography': 'geography',              // english key in data.js
-  'art': 'изкуство и музика',             // absent for now
+  'cs': 'информатика',
+  'geography': 'geography',
+  'art': 'Изобразително изкуство',
   'chovek_prirodata': 'Човекът и природата',
   'chovek_obshtestvo': 'Човекът и обществото',
   'rodinoznanie': 'родинознание'
@@ -61,7 +59,7 @@ const subjects = [
     desc: 'Физическа и социална география',
     accentColor: '#5dd6de', accentBorder: 'rgba(93,214,222,0.4)',
     letterBg: 'rgba(93,214,222,0.12)' },
-  { id: 'art', letter: 'И', name: 'Изкуство и музика',
+  { id: 'art', letter: 'И', name: 'Изобразително изкуство',
     desc: 'Теория, история и техники',
     accentColor: '#ff7eb3', accentBorder: 'rgba(255,126,179,0.4)',
     letterBg: 'rgba(255,126,179,0.12)' },
@@ -99,7 +97,7 @@ function getDataSubjectNames(subjectId) {
 }
 
 function isSubjectAvailableForGrade(subjectId, grade) {
-  if (!grade) return true; // no grade selected, show everything
+  if (!grade) return true;
   const names = getDataSubjectNames(subjectId);
   for (const name of names) {
     const dataSubject = topicsBySubject[name];
@@ -163,7 +161,6 @@ function onGradeChange() {
     indicator.classList.add('hidden');
   }
 
-  // refresh subject grid so only relevant subjects appear for the selected grade
   renderHome();
 }
 
@@ -176,11 +173,9 @@ function openSubject(subjectId) {
   document.getElementById('lesson-breadcrumb').textContent = `${subj.name}${gradeLabel}`;
   document.getElementById('lesson-title').textContent = 'Избери раздел';
 
-  // Highlight stepper
   document.getElementById('step-unit')?.classList.add('active');
   document.getElementById('step-topic')?.classList.remove('active');
 
-  // Get units from data.js; try each mapped name until we find one with data for this grade
   const gradeKey = currentGrade || '1';
   let units = [];
   const names = getDataSubjectNames(subjectId);
@@ -220,7 +215,6 @@ function selectUnit(unitName, unitIndex, el) {
   document.getElementById('step-unit')?.classList.remove('active');
   document.getElementById('step-topic')?.classList.add('active');
 
-  // Get topics for this unit from data.js
   const dataSubjectName = subjectDataMapping[currentSubject];
   const dataSubject = topicsBySubject[dataSubjectName];
   const gradeKey = currentGrade || '1';
@@ -244,7 +238,6 @@ function selectUnit(unitName, unitIndex, el) {
 }
 
 function openSubjectTopic(subjectId, topic) {
-  // Opens the subject view and pre-selects the unit + topic if available.
   openSubject(subjectId);
 
   const gradeKey = currentGrade || '1';
@@ -405,11 +398,9 @@ function loadSavedLesson(id) {
   document.getElementById('lesson-breadcrumb').textContent = `${lesson.subject} · ${lesson.grade}`;
   document.getElementById('lesson-title').textContent      = lesson.unit;
 
-  // Highlight stepper (we are already in the topic view)
   document.getElementById('step-unit')?.classList.add('active');
   document.getElementById('step-topic')?.classList.add('active');
 
-  // Get units for this subject/grade from data.js (respect mapping arrays)
   const gradeKey = lesson.grade;
   let units = [];
   const names = getDataSubjectNames(lesson.subjectId);
@@ -429,7 +420,6 @@ function loadSavedLesson(id) {
     </div>
   `).join('');
 
-  // Show the topics within this unit
   const currentUnitData = units.find(u => u.unit === lesson.unit);
   if (currentUnitData && currentUnitData.topics) {
     const topicsHtml = `

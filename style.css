@@ -1,15 +1,15 @@
 :root {
-  --bg: #0d0f14;
-  --surface: #161a22;
-  --surface2: #1e2330;
-  --border: #2a3040;
-  --accent: #f0c060;
-  --accent2: #6eb5ff;
-  --accent3: #b08fff;
-  --text: #e8ecf4;
-  --muted: #7a8499;
-  --danger: #ff6b6b;
-  --success: #5dde8f;
+  --bg: #1f2228;
+  --surface: #292e38;
+  --surface2: #343b48;
+  --border: #414a5c;
+  --accent: #c9a255;
+  --accent2: #72a9ff;
+  --accent3: #9c82d8;
+  --text: #eceff4;
+  --muted: #99a3b7;
+  --danger: #ff7b7b;
+  --success: #6ad09a;
   --radius: 14px;
   --transition: 0.22s cubic-bezier(0.4,0,0.2,1);
 }
@@ -28,10 +28,9 @@ body::before {
   content: '';
   position: fixed;
   inset: 0;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+  background: transparent;
   pointer-events: none;
   z-index: 0;
-  opacity: 0.5;
 }
 
 /* GLOW ORBS */
@@ -65,7 +64,7 @@ header {
   padding: 20px 40px;
   border-bottom: 1px solid var(--border);
   backdrop-filter: blur(20px);
-  background: rgba(13,15,20,0.7);
+  background: rgba(31,34,40,0.78);
   position: sticky;
   top: 0;
   z-index: 100;
