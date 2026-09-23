@@ -255,7 +255,7 @@ function buildTriangleSVG(data) {
     const strokeMark  = (unit * 0.011).toFixed(3);
     const dash = `${(unit * 0.045).toFixed(3)},${(unit * 0.032).toFixed(3)}`;
 
-    let svg = `<svg viewBox="0 0 ${W.toFixed(2)} ${H.toFixed(2)}" style="width:100%;max-width:380px;height:auto;display:block;margin:18px auto;" xmlns="http://www.w3.org/2000/svg">`;
+    let svg = `<div style="max-width:380px;width:100%;margin:18px auto;overflow-x:auto;"><svg viewBox="0 0 ${W.toFixed(2)} ${H.toFixed(2)}" width="${W.toFixed(2)}" height="${H.toFixed(2)}" style="width:100%;height:auto;display:block;" xmlns="http://www.w3.org/2000/svg">`;
 
     const mA = map(A), mB = map(B), mC = map(C);
     svg += `<polygon points="${fmt(mA)} ${fmt(mB)} ${fmt(mC)}" fill="rgba(110,181,255,0.08)" stroke="var(--accent2)" stroke-width="${strokeThick}" />`;
@@ -320,7 +320,7 @@ function buildTriangleSVG(data) {
       svg += `<circle cx="${mo.x.toFixed(2)}" cy="${mo.y.toFixed(2)}" r="${dotR}" fill="var(--accent3)" />`;
     }
 
-    svg += `</svg>`;
+    svg += `</svg></div>`;
     if (data.caption) {
       svg += `<div style="text-align:center;font-size:0.8rem;color:var(--muted);margin:-10px 0 14px;">${escapeXml(data.caption)}</div>`;
     }
@@ -378,7 +378,7 @@ function buildPlotSVG(data) {
     const mapX = (x) => marginL + (x - xmin) / (xmax - xmin) * plotW;
     const mapY = (y) => marginT + (yMax - y) / (yMax - yMin) * plotH;
 
-    let svg = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:460px;height:auto;display:block;margin:18px auto;" xmlns="http://www.w3.org/2000/svg">`;
+    let svg = `<div style="max-width:460px;width:100%;margin:18px auto;overflow-x:auto;"><svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" style="width:100%;height:auto;display:block;" xmlns="http://www.w3.org/2000/svg">`;
 
     const xStep = niceStep(xmax - xmin), yStep = niceStep(yMax - yMin);
     for (let gx = Math.ceil(xmin / xStep) * xStep; gx <= xmax + 1e-9; gx += xStep) {
@@ -421,7 +421,7 @@ function buildPlotSVG(data) {
       ly += 16;
     });
 
-    svg += `</svg>`;
+    svg += `</svg></div>`;
     return svg;
   } catch (e) {
     return null;
@@ -1012,3 +1012,18 @@ function showToast(msg, isError = false) {
 
 renderHome();
 navigate('home');
+
+/* Keep the chat input above the on-screen keyboard on mobile */
+(function () {
+  const aiInputEl = document.getElementById('ai-input');
+  if (!aiInputEl) return;
+  const keepVisible = () => {
+    if (document.activeElement === aiInputEl) {
+      aiInputEl.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }
+  };
+  aiInputEl.addEventListener('focus', () => setTimeout(keepVisible, 300));
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', keepVisible);
+  }
+})();
