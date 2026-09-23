@@ -26,55 +26,55 @@ const subjects = [
   { id: 'math', letter: 'М', name: 'Математика',
     desc: 'Алгебра, геометрия, смятане и още',
     accentColor: '#f0c060', accentBorder: 'rgba(240,192,96,0.4)',
-    letterBg: 'rgba(240,192,96,0.12)' },
+    letterBg: 'rgba(240,192,96,0.22)' },
   { id: 'bulgarian', letter: 'Б', name: 'Български език',
     desc: 'Граматика, писане, литература',
     accentColor: '#6eb5ff', accentBorder: 'rgba(110,181,255,0.4)',
-    letterBg: 'rgba(110,181,255,0.12)' },
+    letterBg: 'rgba(110,181,255,0.22)' },
   { id: 'english', letter: 'А', name: 'Английски език',
     desc: 'Граматика, речник, разговорна практика',
     accentColor: '#6effa0', accentBorder: 'rgba(110,255,160,0.4)',
-    letterBg: 'rgba(110,255,160,0.12)' },
+    letterBg: 'rgba(110,255,160,0.22)' },
   { id: 'history', letter: 'И', name: 'История и цивилизация',
     desc: 'Световна и българска история',
     accentColor: '#ff9f6b', accentBorder: 'rgba(255,159,107,0.4)',
-    letterBg: 'rgba(255,159,107,0.12)' },
+    letterBg: 'rgba(255,159,107,0.22)' },
   { id: 'biology', letter: 'Б', name: 'Биология',
     desc: 'Животни, растения, човешко тяло',
     accentColor: '#5dde8f', accentBorder: 'rgba(93,222,143,0.4)',
-    letterBg: 'rgba(93,222,143,0.12)' },
+    letterBg: 'rgba(93,222,143,0.22)' },
   { id: 'physics', letter: 'Ф', name: 'Физика',
     desc: 'Движение, енергия, светлина',
     accentColor: '#ff9f6b', accentBorder: 'rgba(255,159,107,0.4)',
-    letterBg: 'rgba(255,159,107,0.12)' },
+    letterBg: 'rgba(255,159,107,0.22)' },
   { id: 'chemistry', letter: 'Х', name: 'Химия',
     desc: 'Вещества, реакции и опазване на околната среда',
     accentColor: '#ff8c00', accentBorder: 'rgba(255,140,0,0.4)',
-    letterBg: 'rgba(255,140,0,0.12)' },
+    letterBg: 'rgba(255,140,0,0.22)' },
   { id: 'cs', letter: 'И', name: 'Информатика',
     desc: 'Програмиране, алгоритми, уеб',
     accentColor: '#b08fff', accentBorder: 'rgba(176,143,255,0.4)',
-    letterBg: 'rgba(176,143,255,0.12)' },
+    letterBg: 'rgba(176,143,255,0.22)' },
   { id: 'geography', letter: 'Г', name: 'География и икономика',
     desc: 'Физическа и социална география',
     accentColor: '#5dd6de', accentBorder: 'rgba(93,214,222,0.4)',
-    letterBg: 'rgba(93,214,222,0.12)' },
+    letterBg: 'rgba(93,214,222,0.22)' },
   { id: 'art', letter: 'И', name: 'Изобразително изкуство',
     desc: 'Теория, история и техники',
     accentColor: '#ff7eb3', accentBorder: 'rgba(255,126,179,0.4)',
-    letterBg: 'rgba(255,126,179,0.12)' },
+    letterBg: 'rgba(255,126,179,0.22)' },
   { id: 'chovek_prirodata', letter: 'П', name: 'Човекът и природата',
     desc: 'Основи на природата и човешкото здраве',
     accentColor: '#8fd14f', accentBorder: 'rgba(143,209,79,0.4)',
-    letterBg: 'rgba(143,209,79,0.12)' },
+    letterBg: 'rgba(143,209,79,0.22)' },
   { id: 'chovek_obshtestvo', letter: 'О', name: 'Човекът и обществото',
     desc: 'Социални умения, държава, гражданство',
     accentColor: '#ffb74d', accentBorder: 'rgba(255,183,77,0.4)',
-    letterBg: 'rgba(255,183,77,0.12)' },
+    letterBg: 'rgba(255,183,77,0.22)' },
   { id: 'rodinoznanie', letter: 'Р', name: 'Родинознание',
     desc: 'Познай своя роден край и родина',
     accentColor: '#4da6ff', accentBorder: 'rgba(77,166,255,0.4)',
-    letterBg: 'rgba(77,166,255,0.12)' }
+    letterBg: 'rgba(77,166,255,0.22)' }
 ];
 
 const quickTopics = [
@@ -116,7 +116,8 @@ function renderHome() {
   grid.innerHTML = displaySubjects.map(s => `
     <div class="subject-card" onclick="openSubject('${s.id}')"
       style="--card-accent: linear-gradient(135deg, transparent 60%, ${s.accentColor}08);
-             --card-accent-border: ${s.accentBorder}">
+             --card-accent-border: ${s.accentBorder};
+             border-color: ${s.accentBorder.replace('0.4)', '0.22)')}">
       <div class="subject-letter" style="background:${s.letterBg}; color:${s.accentColor}">
         ${s.letter}
       </div>
@@ -128,7 +129,7 @@ function renderHome() {
   const qGrid = document.getElementById('quick-grid');
   qGrid.innerHTML = quickTopics.map(q => `
     <div class="subject-card" onclick="openSubjectTopic('${q.sub}', '${q.topic}')">
-      <div class="subject-letter" style="background:rgba(240,192,96,0.1); color:var(--accent)">
+      <div class="subject-letter" style="background:rgba(240,192,96,0.22); color:var(--accent)">
         ${q.letter}
       </div>
       <h3>${q.name}</h3>
